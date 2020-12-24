@@ -62,6 +62,8 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			APIVersion: "apps/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			Name: req.Name,
+			Namespace: req.Namespace,
 			Annotations: map[string]string{
 				"foo": instance.Spec.Foo,
 			},
@@ -73,6 +75,7 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	err = r.Client.Update(ctx, statefulSet)
 	if err != nil {
+		reqLogger.Info("RedisSentinel error", err)
 		return reconcile.Result{}, err
 	}
 	reqLogger.Info("end Reconcile")

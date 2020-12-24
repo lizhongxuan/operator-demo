@@ -1,0 +1,7 @@
+apiVersion: redis.kdcloud.io/v1
+kind: RedisSentinel
+metadata:
+  name: redissentinel-sample
+spec:
+  # Add fields here
+  foo: bar

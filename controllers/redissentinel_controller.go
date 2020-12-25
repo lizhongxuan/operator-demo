@@ -51,7 +51,7 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	err := r.Client.Get(ctx, req.NamespacedName, instance)
 	if err != nil {
-		reqLogger.Info("RedisSentinel error", err)
+		reqLogger.Info("sts Get", "error",err)
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
@@ -75,7 +75,7 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	err = r.Client.Update(ctx, statefulSet)
 	if err != nil {
-		reqLogger.Info("RedisSentinel error", err)
+		reqLogger.Info("sts Update","error", err)
 		return reconcile.Result{}, err
 	}
 	reqLogger.Info("end Reconcile")

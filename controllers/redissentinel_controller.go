@@ -30,6 +30,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	redisv1 "redis-sentinel/api/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // RedisSentinelReconciler reconciles a RedisSentinel object
@@ -76,6 +77,26 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 				},
 				Spec: appsv1.StatefulSetSpec{
 					Replicas: &instance.Spec.Size,
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app":req.Name,
+						},
+					},
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{
+								"app":req.Name,
+							},
+						},
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name: req.Name,
+									Image: "nginx",
+								},
+							},
+						},
+					},
 				},
 			}
 			if err := r.Client.Create(ctx,statefulSet);err != nil {

@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"time"
@@ -48,33 +49,48 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	// your logic here
 	instance := &redisv1.RedisSentinel{}
-
-	err := r.Client.Get(ctx, req.NamespacedName, instance)
-	if err != nil {
-		reqLogger.Info("sts Get", "error",err)
+	if err := r.Client.Get(ctx, req.NamespacedName, instance) ;err != nil {
+		reqLogger.Info("RedisSentinel Get", "error",err)
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
 
-	statefulSet := &appsv1.StatefulSet{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "StatefulSet",
-			APIVersion: "apps/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: req.Name,
-			Namespace: req.Namespace,
-			Annotations: map[string]string{
-				"foo": instance.Spec.Foo,
-			},
-		},
-		Spec: appsv1.StatefulSetSpec{
-			Replicas: &instance.Spec.Size,
-		},
+
+
+	sts := &appsv1.StatefulSet{}
+	if err := r.Client.Get(ctx,req.NamespacedName,sts);err != nil {
+		reqLogger.Error(err,"sts Get")
+		if errors.IsNotFound(err) {  // 没找到,创建新的
+			reqLogger.Info("sts create")
+			statefulSet := &appsv1.StatefulSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "StatefulSet",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: req.Name,
+					Namespace: req.Namespace,
+					Annotations: map[string]string{
+						"foo-create": instance.Spec.Foo,
+					},
+				},
+				Spec: appsv1.StatefulSetSpec{
+					Replicas: &instance.Spec.Size,
+				},
+			}
+			if err := r.Client.Create(ctx,statefulSet);err != nil {
+				reqLogger.Error(err,"sts Create error")
+				return ctrl.Result{}, nil
+			}
+		}
 	}
 
-	err = r.Client.Update(ctx, statefulSet)
-	if err != nil {
+	reqLogger.Info("sts update")
+	sts.Spec.Replicas = &instance.Spec.Size
+	sts.Annotations = map[string]string{
+		"foo-update": instance.Spec.Foo,
+	}
+	if err := r.Client.Update(ctx, sts);err != nil {
 		reqLogger.Info("sts Update","error", err)
 		return reconcile.Result{}, err
 	}

@@ -18,8 +18,9 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"time"
 
@@ -28,16 +29,36 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	appsv1 "k8s.io/api/apps/v1"
 	redisv1 "redis-sentinel/api/v1"
-	corev1 "k8s.io/api/core/v1"
 )
+
+
+const ReconcileTime = 60 * time.Second
+
+var (
+	controllerFlagSet *pflag.FlagSet
+	// maxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run. Defaults to 4.
+	maxConcurrentReconciles int
+	// reconcileTime is the delay between reconciliations. Defaults to 60s.
+	reconcileTime int
+
+	)
+
+
+func init() {
+	controllerFlagSet = pflag.NewFlagSet("controller", pflag.ExitOnError)
+	controllerFlagSet.IntVar(&maxConcurrentReconciles, "ctr-maxconcurrent", 4, "the maximum number of concurrent Reconciles which can be run. Defaults to 4.")
+	controllerFlagSet.IntVar(&reconcileTime, "ctr-reconciletime", 60, "")
+}
+
 
 // RedisSentinelReconciler reconciles a RedisSentinel object
 type RedisSentinelReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+
+	handler *RedisSentinelHandler
 }
 
 // +kubebuilder:rbac:groups=redis.kdcloud.io,resources=redissentinels,verbs=get;list;watch;create;update;patch;delete
@@ -50,75 +71,36 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 
 	// your logic here
 	instance := &redisv1.RedisSentinel{}
-	if err := r.Client.Get(ctx, req.NamespacedName, instance) ;err != nil {
-		reqLogger.Info("RedisSentinel Get", "error",err)
+	if err := r.Client.Get(ctx, req.NamespacedName, instance); err != nil {
+		if errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			reqLogger.Info("RedisSentinel delete", "error", err)
+			instance.Namespace = req.NamespacedName.Namespace
+			instance.Name = req.NamespacedName.Name
+			r.handler.MetaCache.Del(instance)
+		}
+		reqLogger.Info("Get RedisSentinel", "error", err)
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
 
-
-
-	sts := &appsv1.StatefulSet{}
-	if err := r.Client.Get(ctx,req.NamespacedName,sts);err != nil {
-		reqLogger.Error(err,"sts Get")
-		if errors.IsNotFound(err) {  // 没找到,创建新的
-			reqLogger.Info("sts create")
-			statefulSet := &appsv1.StatefulSet{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "StatefulSet",
-					APIVersion: "apps/v1",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: req.Name,
-					Namespace: req.Namespace,
-					Annotations: map[string]string{
-						"foo-create": instance.Spec.Foo,
-					},
-				},
-				Spec: appsv1.StatefulSetSpec{
-					Replicas: &instance.Spec.Size,
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app":req.Name,
-						},
-					},
-					Template: corev1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Labels: map[string]string{
-								"app":req.Name,
-							},
-						},
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
-								{
-									Name: req.Name,
-									Image: "nginx",
-								},
-							},
-						},
-					},
-				},
-			}
-			if err := r.Client.Create(ctx,statefulSet);err != nil {
-				reqLogger.Error(err,"sts Create error")
-				return ctrl.Result{}, nil
-			}
+	reqLogger.Info(fmt.Sprintf("RedisSentinel Spec:\n %+v", instance))
+	if err := r.handler.Do(instance); err != nil {
+		if err.Error() == needRequeueMsg {
+			return reconcile.Result{RequeueAfter: 20 * time.Second}, nil
 		}
-	}
-
-	reqLogger.Info("sts update")
-	sts.Spec.Replicas = &instance.Spec.Size
-	sts.Annotations = map[string]string{
-		"foo-update": instance.Spec.Foo,
-	}
-	if err := r.Client.Update(ctx, sts);err != nil {
-		reqLogger.Info("sts Update","error", err)
+		reqLogger.Error(err, "Reconcile handler")
 		return reconcile.Result{}, err
 	}
-	reqLogger.Info("end Reconcile")
-	return ctrl.Result{RequeueAfter: 50 * time.Second}, nil
+	if err := r.handler.rcChecker.CheckSentinelReadyReplicas(instance); err != nil {
+		reqLogger.Info(err.Error())
+		return reconcile.Result{RequeueAfter: 20 * time.Second}, nil
+	}
+	reqLogger.Info("end Reconcile ,requeue after 60 second")
+	return reconcile.Result{RequeueAfter: time.Duration(reconcileTime) * time.Second}, nil
 }
-
 
 func (r *RedisSentinelReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).

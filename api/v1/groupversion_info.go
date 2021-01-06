@@ -24,6 +24,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
+const (
+	Kind = "RedisSentinel"
+)
+
 var (
 	// GroupVersion is group version used to register these objects
 	GroupVersion = schema.GroupVersion{Group: "redis.kdcloud.io", Version: "v1"}
@@ -34,3 +38,8 @@ var (
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
 )
+
+// VersionKind takes an unqualified kind and returns back a Group qualified GroupVersionKind
+func VersionKind(kind string) schema.GroupVersionKind {
+	return GroupVersion.WithKind(kind)
+}

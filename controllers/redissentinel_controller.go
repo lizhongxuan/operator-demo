@@ -21,6 +21,11 @@ import (
 	"fmt"
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"redis-sentinel/controllers/clustercache"
+	"redis-sentinel/controllers/redisclient"
+	"redis-sentinel/pkg/k8s"
+	"redis-sentinel/service"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"time"
 
@@ -32,7 +37,6 @@ import (
 	redisv1 "redis-sentinel/api/v1"
 )
 
-
 const ReconcileTime = 60 * time.Second
 
 var (
@@ -41,16 +45,13 @@ var (
 	maxConcurrentReconciles int
 	// reconcileTime is the delay between reconciliations. Defaults to 60s.
 	reconcileTime int
-
-	)
-
+)
 
 func init() {
 	controllerFlagSet = pflag.NewFlagSet("controller", pflag.ExitOnError)
 	controllerFlagSet.IntVar(&maxConcurrentReconciles, "ctr-maxconcurrent", 4, "the maximum number of concurrent Reconciles which can be run. Defaults to 4.")
 	controllerFlagSet.IntVar(&reconcileTime, "ctr-reconciletime", 60, "")
 }
-
 
 // RedisSentinelReconciler reconciles a RedisSentinel object
 type RedisSentinelReconciler struct {
@@ -59,6 +60,36 @@ type RedisSentinelReconciler struct {
 	Scheme *runtime.Scheme
 
 	handler *RedisSentinelHandler
+}
+
+func NewReconciler(mgr manager.Manager) RedisSentinelReconciler {
+	log := ctrl.Log.WithName("controllers").WithName("RedisSentinel")
+
+	// Create kubernetes service.
+	k8sService := k8s.New(mgr.GetClient(), log)
+
+	// Create the redis clients
+	redisClient := redisclient.New()
+
+	// Create internal services.
+	rcService := service.NewRedisClusterKubeClient(k8sService, log)
+	rcChecker := service.NewRedisClusterChecker(k8sService, redisClient, log)
+	rcHealer := service.NewRedisClusterHealer(k8sService, redisClient, log)
+
+	handler := &RedisSentinelHandler{
+		k8sServices: k8sService,
+		rcService:   rcService,
+		rcChecker:   rcChecker,
+		rcHealer:    rcHealer,
+		MetaCache:   new(clustercache.MetaMap),
+		eventsCli:   k8s.NewEvent(mgr.GetEventRecorderFor("redis-operator"), log),
+		logger:      log,
+	}
+
+	return RedisSentinelReconciler{Client: mgr.GetClient(),
+		Log:     log,
+		Scheme:  mgr.GetScheme(),
+		handler: handler}
 }
 
 // +kubebuilder:rbac:groups=redis.kdcloud.io,resources=redissentinels,verbs=get;list;watch;create;update;patch;delete

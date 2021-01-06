@@ -18,13 +18,14 @@ package main
 
 import (
 	"flag"
-	"os"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"os"
+	"redis-sentinel/pkg/metrics"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	sigsMetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	redisv1 "redis-sentinel/api/v1"
 	"redis-sentinel/controllers"
@@ -42,6 +43,13 @@ func init() {
 	_ = redisv1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
+
+var (
+	metricsHost               = "0.0.0.0"
+	metricsPort         int32 = 8383
+	operatorMetricsPort int32 = 8686
+	metricsNamespace          = "redis_operator"
+)
 
 func main() {
 	var metricsAddr string
@@ -66,11 +74,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.RedisSentinelReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("RedisSentinel"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	// Regist
+	metrics.InitPrometheusMetrics(metricsNamespace, sigsMetrics.Registry)
+
+	rsReconciler := controllers.NewReconciler(mgr)
+	if err = (&rsReconciler).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedisSentinel")
 		os.Exit(1)
 	}

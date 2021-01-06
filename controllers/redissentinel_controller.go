@@ -111,6 +111,7 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 			instance.Namespace = req.NamespacedName.Namespace
 			instance.Name = req.NamespacedName.Name
 			r.handler.MetaCache.Del(instance)
+			return reconcile.Result{}, nil
 		}
 		reqLogger.Info("Get RedisSentinel", "error", err)
 		// Error reading the object - requeue the request.
@@ -120,6 +121,7 @@ func (r *RedisSentinelReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	reqLogger.Info(fmt.Sprintf("RedisSentinel Spec:\n %+v", instance))
 	if err := r.handler.Do(instance); err != nil {
 		if err.Error() == needRequeueMsg {
+			reqLogger.Info("handler Do", "msg", "need requeue")
 			return reconcile.Result{RequeueAfter: 20 * time.Second}, nil
 		}
 		reqLogger.Error(err, "Reconcile handler")

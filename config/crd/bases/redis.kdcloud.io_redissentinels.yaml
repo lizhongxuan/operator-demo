@@ -51,6 +51,15 @@ spec:
   - name: v1
     served: true
     storage: true
+    additionalPrinterColumns:
+      - description: JobRun state
+        jsonPath: .status.state
+        name: State
+        type: string
+      - description: JobRun cost seconds
+        jsonPath: .status.cost
+        name: cost
+        type: integer
 status:
   acceptedNames:
     kind: ""

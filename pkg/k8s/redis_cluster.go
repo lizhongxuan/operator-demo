@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	rsv1 "redis-sentinel/api/v1"
 )
@@ -30,6 +31,19 @@ func NewCluster(kubeClient client.Client, logger logr.Logger) Cluster {
 
 // UpdateCluster implement the  Cluster.Interface
 func (c *ClusterOption) UpdateCluster(namespace string, rs *rsv1.RedisSentinel) error {
+	c.logger.WithValues("rs", rs,"namespace",namespace).Info("UpdateCluster...")
+
+	instance := &rsv1.RedisSentinel{}
+	if err := c.client.Get(context.TODO(), types.NamespacedName{
+		Namespace: rs.Namespace,
+		Name: rs.Name,
+	}, instance);err != nil{
+		c.logger.WithValues("namespace", rs.Namespace, "cluster", rs.Name).
+			Error(err, "RedisSentinel.GET")
+		return err
+	}
+	c.logger.WithValues("instance", instance).Info("get instance")
+
 	rs.Status.DescConditionsByTime()
 	err := c.client.Status().Update(context.TODO(), rs)
 	if err != nil {

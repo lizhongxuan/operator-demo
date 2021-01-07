@@ -31,8 +31,6 @@ func NewCluster(kubeClient client.Client, logger logr.Logger) Cluster {
 
 // UpdateCluster implement the  Cluster.Interface
 func (c *ClusterOption) UpdateCluster(namespace string, rs *rsv1.RedisSentinel) error {
-	c.logger.WithValues("rs", rs,"namespace",namespace).Info("UpdateCluster...")
-
 	instance := &rsv1.RedisSentinel{}
 	if err := c.client.Get(context.TODO(), types.NamespacedName{
 		Namespace: rs.Namespace,
@@ -42,10 +40,13 @@ func (c *ClusterOption) UpdateCluster(namespace string, rs *rsv1.RedisSentinel) 
 			Error(err, "RedisSentinel.GET")
 		return err
 	}
-	c.logger.WithValues("instance", instance).Info("get instance")
 
-	rs.Status.DescConditionsByTime()
-	err := c.client.Status().Update(context.TODO(), rs)
+	instance.Labels = instance.Labels
+	instance.Annotations = instance.Annotations
+	instance.Spec = instance.Spec
+	instance.ClusterName = instance.ClusterName
+	
+	err := c.client.Update(context.TODO(), instance)
 	if err != nil {
 		c.logger.WithValues("namespace", namespace, "cluster", rs.Name, "conditions", rs.Status.Conditions).
 			Error(err, "redisClusterStatus")

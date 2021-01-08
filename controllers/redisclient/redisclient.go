@@ -1,15 +1,15 @@
 package redisclient
 
 import (
-"errors"
-"fmt"
-"net"
-"regexp"
-"strconv"
-"strings"
+	"errors"
+	"fmt"
+	"net"
+	"regexp"
+	"strconv"
+	"strings"
 
-rediscli "github.com/go-redis/redis"
-"redis-sentinel/pkg/util"
+	rediscli "github.com/go-redis/redis"
+	"redis-sentinel/pkg/util"
 )
 
 // Client defines the functions necessary to connect to redis and sentinel to get or set what we need
@@ -328,4 +328,3 @@ func (c *client) setOptions(ip, port string, auth *util.AuthConfig) *rediscli.Op
 		DB:       0,
 	}
 }
-

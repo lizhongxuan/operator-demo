@@ -1,7 +1,0 @@
-domain: kdcloud.io
-repo: redis-sentinel
-resources:
-- group: redis
-  kind: RedisSentinel
-  version: v1
-version: "2"

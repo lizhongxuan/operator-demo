@@ -45,7 +45,7 @@ func (c *ClusterOption) UpdateCluster(namespace string, rs *rsv1.RedisSentinel) 
 	instance.Annotations = instance.Annotations
 	instance.Spec = instance.Spec
 	instance.ClusterName = instance.ClusterName
-	
+
 	err := c.client.Update(context.TODO(), instance)
 	if err != nil {
 		c.logger.WithValues("namespace", namespace, "cluster", rs.Name, "conditions", rs.Status.Conditions).

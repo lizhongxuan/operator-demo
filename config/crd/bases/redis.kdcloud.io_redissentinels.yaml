@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.5
   creationTimestamp: null
-  name: redissentinels.redis.kdcloud.io
+  name: redissentinels.redis.xuan.io
 spec:
-  group: redis.kdcloud.io
+  group: redis.xuan.io
   names:
     kind: RedisSentinel
     listKind: RedisSentinelList

@@ -5,7 +5,7 @@ metadata:
   name: redissentinel-editor-role
 rules:
 - apiGroups:
-  - redis.kdcloud.io
+  - redis.xuan.io
   resources:
   - redissentinels
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - redis.kdcloud.io
+  - redis.xuan.io
   resources:
   - redissentinels/status
   verbs:
